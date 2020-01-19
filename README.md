@@ -12,3 +12,5 @@ Goal: generate text like real human tweeting
         > Be careful, since we are training a text generator, so the discriminator should focus on the text content, because some social bot detector(classifier) is using other characteristics of the social bots to discriminate them.
         - to classify real data and bot data
         - maybe start with a single user tweet classification for experiment?
+        
+- We need to figure out what is our input of discrimminator and input of the generator
