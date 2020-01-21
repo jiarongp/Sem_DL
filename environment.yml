@@ -1,0 +1,13 @@
+name: text_gen
+channels:
+  - defaults
+dependencies:
+  - numpy>=1.14.5
+  - nltk>=3.4.5
+  - tqdm>=4.32.1
+  - cudatoolkit=10.0.130=0
+  - cudnn=7.6.5=cuda10.0_0
+
+
+prefix: /home/gary/anaconda3/envs/text_gen
+
