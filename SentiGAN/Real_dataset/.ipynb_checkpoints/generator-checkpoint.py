@@ -1,5 +1,6 @@
 # import tensorflow as tf
 import tensorflow.compat.v1 as tf
+import tensorflow.keras as keras
 tf.disable_v2_behavior()
 import tensorflow_addons as tfa
 from tensorflow.compat.v1.nn.rnn_cell import DropoutWrapper, BasicLSTMCell, LSTMStateTuple
@@ -37,8 +38,11 @@ class Generator(object):
             self.output_layer = layers_core.Dense(self.num_emb, use_bias=False)
 
         def _get_cell(_num_units):
-            return DropoutWrapper(BasicLSTMCell(_num_units),
-                                                 input_keep_prob=self.keep_prob)
+            return keras.layers.LSTMCell(_num_units)
+#             return DropoutWrapper(keras.layers.LSTMCell(_num_units),
+#                                                  input_keep_prob=self.keep_prob)
+#             return DropoutWrapper(BasicLSTMCell(_num_units),
+#                                                  input_keep_prob=self.keep_prob)
 
         with tf.variable_scope("decoder"):
             self.decoder_cell = _get_cell(self.num_units)
@@ -52,27 +56,29 @@ class Generator(object):
 
             # tf.zeros([self.batch_size, self.num_units])
             # h = tf.zeros([self.batch_size, self.num_units])
-            self.initial_state = LSTMStateTuple(c=self.c, h=self.h)
+#             self.initial_state = LSTMStateTuple(c=self.c, h=self.h)
+            self.initial_state = [self.h, self.c]
 
             ###################### pretain with targets ######################
-            helper_pt = tf.contrib.seq2seq.TrainingHelper(
-                inputs=self.emb_x,
-                sequence_length=self.sequence_lengths,
+            
+            # Sampler
+            sampler_pt = tfa.seq2seq.TrainingSampler(
                 time_major=False,
             )
-            decoder_pt = tf.contrib.seq2seq.BasicDecoder(
+            
+            decoder_pt = tfa.seq2seq.BasicDecoder(
                 cell=self.decoder_cell,
-                helper=helper_pt,
-                initial_state=self.initial_state,
+                sampler=sampler_pt,
                 output_layer=self.output_layer
             )
-
-            outputs_pt, _final_state, sequence_lengths_pt = tf.contrib.seq2seq.dynamic_decode(
-                decoder=decoder_pt,
-                output_time_major=False,
-                maximum_iterations=self.max_sequence_length,
-                swap_memory=True,
+            
+            # change
+            outputs_pt, _final_state, sequence_lengths_pt = decoder_pt(
+                self.emb_x,
+                initial_state=self.initial_state,
+                sequence_length=self.sequence_lengths,
             )
+    
             self.logits_pt = outputs_pt.rnn_output
 
             self.g_predictions = tf.nn.softmax(self.logits_pt)
@@ -104,38 +110,42 @@ class Generator(object):
 
 
             ###################### train without targets ######################
-            helper_o = tfa.seq2seq.SampleEmbeddingHelper(
-                self.g_embeddings,
-                tf.fill([self.batch_size], self.vocab_dict['<GO>']),
-                end_token=self.vocab_dict['<EOS>']
-            )
+            # Sampler
+            sampler_o = tfa.seq2seq.SampleEmbeddingSampler()
+            
             decoder_o = tfa.seq2seq.BasicDecoder(
                 cell=self.decoder_cell,
-                helper=helper_o,
-                initial_state=self.initial_state,
+                sampler=sampler_o,
                 output_layer=self.output_layer
             )
-            outputs_o, _final_state_o, sequence_lengths_o = tfa.seq2seq.dynamic_decode(
-                decoder=decoder_o,
-                output_time_major=False,
-                maximum_iterations=self.max_sequence_length,
-                swap_memory=True,
+            
+            # change
+            outputs_o, _final_state_o, sequence_lengths_o = decoder_o(
+                self.g_embeddings,
+                start_tokens=tf.fill([self.batch_size], self.vocab_dict['<GO>']),
+                end_token=self.vocab_dict['<EOS>'],
+                initial_state=self.initial_state,
             )
 
             self.out_lenghts = sequence_lengths_o
             self.out_tokens = tf.unstack(outputs_o.sample_id, axis=0)
 
             ######################  infer  ######################
-            helper_i = tfa.seq2seq.GreedyEmbeddingHelper(
-                self.g_embeddings,
-                tf.fill([self.batch_size], self.vocab_dict['<GO>']),
-                end_token=self.vocab_dict['<EOS>']
-            )
+            # Sampler
+            sampler_i = tfa.seq2seq.GreedyEmbeddingSampler()
+            
             decoder_i = tfa.seq2seq.BasicDecoder(
                 cell=self.decoder_cell,
-                helper=helper_i,
-                initial_state=self.initial_state,
+                sampler=sampler_i,
                 output_layer=self.output_layer
+            )
+            
+            # change
+            outputs_i, _final_state_i, sequence_lengths_i = decoder_i(
+                self.g_embeddings,
+                start_tokens=tf.fill([self.batch_size], self.vocab_dict['<GO>']),
+                end_token=self.vocab_dict['<EOS>'],
+                initial_state=self.initial_state,
             )
             
             # beam_search_initial_state = tf.contrib.seq2seq.tile_batch(
@@ -152,12 +162,6 @@ class Generator(object):
             #     length_penalty_weight=0.1,
             # )
 
-            outputs_i, _final_state_i, sequence_lengths_i = tfa.seq2seq.dynamic_decode(
-                decoder=decoder_i,
-                output_time_major=False,
-                maximum_iterations=self.max_sequence_length,
-                swap_memory=True,
-            )
 
             # only for beam search
             # sample_id = tf.transpose(outputs_i.predicted_ids, perm=[0,2,1])
@@ -174,40 +178,44 @@ class Generator(object):
             self.rollout_next_id = tf.placeholder(dtype=tf.int32, shape=[None])
 
             rollout_inputs = tf.nn.embedding_lookup(self.g_embeddings, self.rollout_input_ids)
-            helper_ro = tfa.seq2seq.TrainingHelper(
-                rollout_inputs,
-                self.rollout_input_lengths
+            
+            # Sampler
+            sampler_ro = tfa.seq2seq.TrainingSampler(
+                time_major=False,
             )
+            
             rollout_decoder = tfa.seq2seq.BasicDecoder(
                 cell=self.decoder_cell,
-                helper=helper_ro,
-                initial_state=self.initial_state,
+                sampler=sampler_ro,
                 output_layer=self.output_layer
             )
-            _, final_state_ro, _ = tfa.seq2seq.dynamic_decode(
-                rollout_decoder,
-                maximum_iterations=self.max_sequence_length,
-                swap_memory=True
+            
+            # change
+            _, final_state_ro, _ = rollout_decoder(
+                rollout_inputs,
+                initial_state=self.initial_state,
+                sequence_length=self.rollout_input_lengths,
             )
+            
             initial_state_MC = final_state_ro
-            helper_MC = tfa.seq2seq.SampleEmbeddingHelper(
-                self.g_embeddings,
-                self.rollout_next_id,
-                end_token=self.vocab_dict['<EOS>']
-            )
+            
+            # Sampler
+            sampler_MC = tfa.seq2seq.SampleEmbeddingSampler()
+            
             rollout_decoder_MC = tfa.seq2seq.BasicDecoder(
                 cell=self.decoder_cell,
-                helper=helper_MC,
-                initial_state=initial_state_MC,
+                sampler=sampler_MC,
                 output_layer=self.output_layer
             )
             self.max_mc_length = tf.cast(self.max_sequence_length - self.rollout_input_length, tf.int32)
-            decoder_output_MC, _, _ = tfa.seq2seq.dynamic_decode(
-                rollout_decoder_MC,
-                output_time_major=False,
-                maximum_iterations=self.max_mc_length,
-                swap_memory=True
+            # change
+            decoder_output_MC, _, _  = rollout_decoder_MC(
+                self.g_embeddings,
+                start_tokens=self.rollout_next_id,
+                end_token=self.vocab_dict['<EOS>'],
+                initial_state=initial_state_MC,
             )
+            
             self.sample_id_MC = decoder_output_MC.sample_id
 
         self.saver = tf.train.Saver(tf.global_variables(), max_to_keep=1)
