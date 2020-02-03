@@ -1,9 +1,4 @@
-# import tensorflow as tf
-import tensorflow.compat.v1 as tf
-import tensorflow.keras as keras
-tf.disable_v2_behavior()
-import tensorflow_addons as tfa
-from tensorflow.compat.v1.nn.rnn_cell import DropoutWrapper, BasicLSTMCell, LSTMStateTuple
+import tensorflow as tf
 from tensorflow.python.ops import tensor_array_ops, control_flow_ops
 from tensorflow.python.layers import core as layers_core
 import numpy as np
@@ -38,47 +33,42 @@ class Generator(object):
             self.output_layer = layers_core.Dense(self.num_emb, use_bias=False)
 
         def _get_cell(_num_units):
-            return keras.layers.LSTMCell(_num_units)
-#             return DropoutWrapper(keras.layers.LSTMCell(_num_units),
-#                                                  input_keep_prob=self.keep_prob)
-#             return DropoutWrapper(BasicLSTMCell(_num_units),
-#                                                  input_keep_prob=self.keep_prob)
+            return tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(_num_units),
+                                                 input_keep_prob=self.keep_prob)
 
         with tf.variable_scope("decoder"):
             self.decoder_cell = _get_cell(self.num_units)
 
             # inital_states
-            self.c = tf.random.normal([self.batch_size, self.num_units], mean=0, stddev=4)
-            self.h = tf.random.normal([self.batch_size, self.num_units], mean=0, stddev=4)
+            self.c = tf.random_normal([self.batch_size, self.num_units], mean=0, stddev=4)
+            self.h = tf.random_normal([self.batch_size, self.num_units], mean=0, stddev=4)
 
             # self.c = tf.placeholder(tf.float32, shape=[self.batch_size, self.num_units])
             # self.h = tf.placeholder(tf.float32, shape=[self.batch_size, self.num_units])
 
             # tf.zeros([self.batch_size, self.num_units])
             # h = tf.zeros([self.batch_size, self.num_units])
-#             self.initial_state = LSTMStateTuple(c=self.c, h=self.h)
-            self.initial_state = [self.h, self.c]
+            self.initial_state = tf.contrib.rnn.LSTMStateTuple(c=self.c, h=self.h)
 
             ###################### pretain with targets ######################
-            
-            # Sampler
-            sampler_pt = tfa.seq2seq.TrainingSampler(
+            helper_pt = tf.contrib.seq2seq.TrainingHelper(
+                inputs=self.emb_x,
+                sequence_length=self.sequence_lengths,
                 time_major=False,
             )
-            
-            decoder_pt = tfa.seq2seq.BasicDecoder(
+            decoder_pt = tf.contrib.seq2seq.BasicDecoder(
                 cell=self.decoder_cell,
-                sampler=sampler_pt,
+                helper=helper_pt,
+                initial_state=self.initial_state,
                 output_layer=self.output_layer
             )
-            
-            # change
-            outputs_pt, _final_state, sequence_lengths_pt = decoder_pt(
-                self.emb_x,
-                initial_state=self.initial_state,
-                sequence_length=self.sequence_lengths,
+
+            outputs_pt, _final_state, sequence_lengths_pt = tf.contrib.seq2seq.dynamic_decode(
+                decoder=decoder_pt,
+                output_time_major=False,
+                maximum_iterations=self.max_sequence_length,
+                swap_memory=True,
             )
-    
             self.logits_pt = outputs_pt.rnn_output
 
             self.g_predictions = tf.nn.softmax(self.logits_pt)
@@ -110,42 +100,38 @@ class Generator(object):
 
 
             ###################### train without targets ######################
-            # Sampler
-            sampler_o = tfa.seq2seq.SampleEmbeddingSampler()
-            
-            decoder_o = tfa.seq2seq.BasicDecoder(
+            helper_o = tf.contrib.seq2seq.SampleEmbeddingHelper(
+                self.g_embeddings,
+                tf.fill([self.batch_size], self.vocab_dict['<GO>']),
+                end_token=self.vocab_dict['<EOS>']
+            )
+            decoder_o = tf.contrib.seq2seq.BasicDecoder(
                 cell=self.decoder_cell,
-                sampler=sampler_o,
+                helper=helper_o,
+                initial_state=self.initial_state,
                 output_layer=self.output_layer
             )
-            
-            # change
-            outputs_o, _final_state_o, sequence_lengths_o = decoder_o(
-                self.g_embeddings,
-                start_tokens=tf.fill([self.batch_size], self.vocab_dict['<GO>']),
-                end_token=self.vocab_dict['<EOS>'],
-                initial_state=self.initial_state,
+            outputs_o, _final_state_o, sequence_lengths_o = tf.contrib.seq2seq.dynamic_decode(
+                decoder=decoder_o,
+                output_time_major=False,
+                maximum_iterations=self.max_sequence_length,
+                swap_memory=True,
             )
 
             self.out_lenghts = sequence_lengths_o
             self.out_tokens = tf.unstack(outputs_o.sample_id, axis=0)
 
             ######################  infer  ######################
-            # Sampler
-            sampler_i = tfa.seq2seq.GreedyEmbeddingSampler()
-            
-            decoder_i = tfa.seq2seq.BasicDecoder(
-                cell=self.decoder_cell,
-                sampler=sampler_i,
-                output_layer=self.output_layer
-            )
-            
-            # change
-            outputs_i, _final_state_i, sequence_lengths_i = decoder_i(
+            helper_i = tf.contrib.seq2seq.GreedyEmbeddingHelper(
                 self.g_embeddings,
-                start_tokens=tf.fill([self.batch_size], self.vocab_dict['<GO>']),
-                end_token=self.vocab_dict['<EOS>'],
+                tf.fill([self.batch_size], self.vocab_dict['<GO>']),
+                end_token=self.vocab_dict['<EOS>']
+            )
+            decoder_i = tf.contrib.seq2seq.BasicDecoder(
+                cell=self.decoder_cell,
+                helper=helper_i,
                 initial_state=self.initial_state,
+                output_layer=self.output_layer
             )
             
             # beam_search_initial_state = tf.contrib.seq2seq.tile_batch(
@@ -162,6 +148,12 @@ class Generator(object):
             #     length_penalty_weight=0.1,
             # )
 
+            outputs_i, _final_state_i, sequence_lengths_i = tf.contrib.seq2seq.dynamic_decode(
+                decoder=decoder_i,
+                output_time_major=False,
+                maximum_iterations=self.max_sequence_length,
+                swap_memory=True,
+            )
 
             # only for beam search
             # sample_id = tf.transpose(outputs_i.predicted_ids, perm=[0,2,1])
@@ -178,44 +170,40 @@ class Generator(object):
             self.rollout_next_id = tf.placeholder(dtype=tf.int32, shape=[None])
 
             rollout_inputs = tf.nn.embedding_lookup(self.g_embeddings, self.rollout_input_ids)
-            
-            # Sampler
-            sampler_ro = tfa.seq2seq.TrainingSampler(
-                time_major=False,
+            helper_ro = tf.contrib.seq2seq.TrainingHelper(
+                rollout_inputs,
+                self.rollout_input_lengths
             )
-            
-            rollout_decoder = tfa.seq2seq.BasicDecoder(
+            rollout_decoder = tf.contrib.seq2seq.BasicDecoder(
                 cell=self.decoder_cell,
-                sampler=sampler_ro,
+                helper=helper_ro,
+                initial_state=self.initial_state,
                 output_layer=self.output_layer
             )
-            
-            # change
-            _, final_state_ro, _ = rollout_decoder(
-                rollout_inputs,
-                initial_state=self.initial_state,
-                sequence_length=self.rollout_input_lengths,
+            _, final_state_ro, _ = tf.contrib.seq2seq.dynamic_decode(
+                rollout_decoder,
+                maximum_iterations=self.max_sequence_length,
+                swap_memory=True
             )
-            
             initial_state_MC = final_state_ro
-            
-            # Sampler
-            sampler_MC = tfa.seq2seq.SampleEmbeddingSampler()
-            
-            rollout_decoder_MC = tfa.seq2seq.BasicDecoder(
+            helper_MC = tf.contrib.seq2seq.SampleEmbeddingHelper(
+                self.g_embeddings,
+                self.rollout_next_id,
+                end_token=self.vocab_dict['<EOS>']
+            )
+            rollout_decoder_MC = tf.contrib.seq2seq.BasicDecoder(
                 cell=self.decoder_cell,
-                sampler=sampler_MC,
+                helper=helper_MC,
+                initial_state=initial_state_MC,
                 output_layer=self.output_layer
             )
             self.max_mc_length = tf.cast(self.max_sequence_length - self.rollout_input_length, tf.int32)
-            # change
-            decoder_output_MC, _, _  = rollout_decoder_MC(
-                self.g_embeddings,
-                start_tokens=self.rollout_next_id,
-                end_token=self.vocab_dict['<EOS>'],
-                initial_state=initial_state_MC,
+            decoder_output_MC, _, _ = tf.contrib.seq2seq.dynamic_decode(
+                rollout_decoder_MC,
+                output_time_major=False,
+                maximum_iterations=self.max_mc_length,
+                swap_memory=True
             )
-            
             self.sample_id_MC = decoder_output_MC.sample_id
 
         self.saver = tf.train.Saver(tf.global_variables(), max_to_keep=1)
@@ -258,10 +246,10 @@ class Generator(object):
         return outputs
 
     def init_matrix(self, shape):
-        return tf.random.normal(shape, stddev=0.1)
+        return tf.random_normal(shape, stddev=0.1)
 
     def _get_cell(self, num_units):
-        return DropoutWrapper(BasicLSTMCell(num_units),
+        return tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(num_units),
                                              input_keep_prob=self.keep_prob)
 
     def pad_input_data(self, x):
@@ -395,4 +383,3 @@ class Generator(object):
     def save_model(self, sess):
         self.saver.save(sess, 'save/ckpt/model.ckpt')
         print("save model success!")
-

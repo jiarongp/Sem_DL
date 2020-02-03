@@ -34,8 +34,12 @@ dis_batch_size = 64
 #  Basic Training Parameters
 #########################################################################################
 TOTAL_BATCH = 2000
-dataset_path = "../data/movie/"
-emb_dict_file = dataset_path + "imdb_word.vocab"
+dataset_path = "../data/tweets/"
+emb_dict_file = dataset_path + "tweet_word.vocab"
+
+# tweets corpus
+tweets_file_txt = dataset_path + "/tweets.txt"
+tweets_file_id = dataset_path + "/tweets.id"
 
 # imdb corpus
 imdb_file_txt = dataset_path + "imdb/imdb_sentences.txt"
@@ -153,10 +157,10 @@ def main():
 
     # prepare data
     pre_train_data_loader = Gen_Data_loader(BATCH_SIZE, vocab_dict)
-    pre_train_data_loader.create_batches([imdb_file_id, sst_pos_file_id, sst_neg_file_id])
+    pre_train_data_loader.create_batches([tweets_file_id])
 
     gen_data_loader = Gen_Data_loader(BATCH_SIZE, vocab_dict)
-    gen_data_loader.create_batches([sst_pos_file_id, sst_neg_file_id])
+    gen_data_loader.create_batches([tweets_file_id])
 
     dis_data_loader = Dis_Data_loader(BATCH_SIZE, vocab_dict, MAX_SEQ_LENGTH)
 
@@ -192,7 +196,7 @@ def main():
     log.write(buffer)
     for _ in range(10):   # 10
         generate_samples(sess, generator, 70, negative_file, vocab_list)
-        dis_data_loader.load_train_data([sst_pos_file_id, sst_neg_file_id], [negative_file])
+        dis_data_loader.load_train_data([tweets_file_id], [negative_file])
         for _ in range(3):
             dis_data_loader.reset_pointer()
             for it in range(dis_data_loader.num_batch):
@@ -268,7 +272,7 @@ def main():
         begin = True
         for _ in range(1):
             generate_samples(sess, generator, 70, negative_file, vocab_list)
-            dis_data_loader.load_train_data([sst_pos_file_id, sst_neg_file_id], [negative_file])
+            dis_data_loader.load_train_data([tweets_file_id], [negative_file])
             for _ in range(3):
                 dis_data_loader.reset_pointer()
                 for it in range(dis_data_loader.num_batch):
