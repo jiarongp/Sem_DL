@@ -8,30 +8,36 @@ class Generator(object):
     def __init__(self, num_emb, vocab_dict, batch_size, emb_dim, num_units,
                  max_sequence_length, learning_rate=0.01, reward_gamma=0.95,
                  ):
-        self.num_emb = num_emb
+        self.num_emb = num_emb # vocab_size
         self.vocab_dict = vocab_dict
         self.batch_size = batch_size
-        self.emb_dim = emb_dim
-        self.num_units = num_units
+        self.emb_dim = emb_dim # 200, embedding dimension
+        self.num_units = num_units # 200 hidden state dimension of lstm cell
         self.max_sequence_length = max_sequence_length
         self.learning_rate = tf.Variable(float(learning_rate), trainable=False)
         self.reward_gamma = reward_gamma
         self.grad_clip = 5.0
         self.keep_prob = 1.0
-
+        
         self.g_embeddings = tf.Variable(self.init_matrix([self.num_emb, self.emb_dim]))
 
         with tf.variable_scope('placeholder'):
             self.x = tf.placeholder(tf.int32, shape=[self.batch_size, self.max_sequence_length])
             self.sequence_lengths = tf.placeholder(tf.int32, shape=[self.batch_size])
 
+        # embedding layer, implementing word embedding and learning the embedding matrix
+        # encoder_emb_inp = embedding_ops.embedding_lookup(embedding_encoder, encoder_inputs)
         with tf.variable_scope('embedding'):
             # batch_size major
+            # Looks up ids in a list of embedding tensors.
             self.emb_x = tf.nn.embedding_lookup(self.g_embeddings, self.x)
-
+            
+        # projection_layer which is a dense matrix to turn 
+        # the top hidden states to logit vectors of dimension V.
         with tf.variable_scope('projection'):
             self.output_layer = layers_core.Dense(self.num_emb, use_bias=False)
-
+        
+        # create a LSTM cell 
         def _get_cell(_num_units):
             return tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(_num_units),
                                                  input_keep_prob=self.keep_prob)
@@ -39,7 +45,7 @@ class Generator(object):
         with tf.variable_scope("decoder"):
             self.decoder_cell = _get_cell(self.num_units)
 
-            # inital_states
+            # inital_states, cell state and hidden state
             self.c = tf.random_normal([self.batch_size, self.num_units], mean=0, stddev=4)
             self.h = tf.random_normal([self.batch_size, self.num_units], mean=0, stddev=4)
 
@@ -56,6 +62,8 @@ class Generator(object):
                 sequence_length=self.sequence_lengths,
                 time_major=False,
             )
+            # initial_state is the state of the encoder
+            # but here, we just use random state
             decoder_pt = tf.contrib.seq2seq.BasicDecoder(
                 cell=self.decoder_cell,
                 helper=helper_pt,
@@ -69,16 +77,20 @@ class Generator(object):
                 maximum_iterations=self.max_sequence_length,
                 swap_memory=True,
             )
+            
             self.logits_pt = outputs_pt.rnn_output
 
             self.g_predictions = tf.nn.softmax(self.logits_pt)
 
             self.targets = tf.placeholder(dtype=tf.int32, shape=[None, None])
+            # target_weights is a zero-one matrix of the same size as decoder_outputs. 
+            # It masks padding positions outside of the target sequence lengths with values 0.
             self.target_weights = tf.placeholder(dtype=tf.float32, shape=[None, None])
 
             crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.targets, logits=self.logits_pt)
+            # Computes the sum of elements across dimensions of a tensor.
             self.pretrain_loss = tf.reduce_sum(crossent * self.target_weights) / tf.to_float(self.batch_size)
-
+            
             self.global_step = tf.Variable(0, trainable=False)
             optimizer = tf.train.AdamOptimizer(self.learning_rate)
             gradients, v = zip(*optimizer.compute_gradients(self.pretrain_loss))
@@ -89,6 +101,7 @@ class Generator(object):
             self.rewards = tf.placeholder(dtype=tf.float32, shape=[None, None])
             self.rewards_loss = tf.reduce_sum(
                 tf.reduce_sum(
+                    # tf.onehot(indices, depth, on_value=None, off_value=None)
                     tf.one_hot(tf.to_int32(tf.reshape(self.x, [-1])), self.num_emb, 1.0, 0.0) * tf.clip_by_value(
                         tf.reshape(self.g_predictions, [-1, self.num_emb]), 1e-20, 1.0)
                     , 1) * tf.reshape(self.rewards, [-1])  # * tf.reshape(self.target_weights, [-1])
@@ -105,6 +118,7 @@ class Generator(object):
                 tf.fill([self.batch_size], self.vocab_dict['<GO>']),
                 end_token=self.vocab_dict['<EOS>']
             )
+            
             decoder_o = tf.contrib.seq2seq.BasicDecoder(
                 cell=self.decoder_cell,
                 helper=helper_o,

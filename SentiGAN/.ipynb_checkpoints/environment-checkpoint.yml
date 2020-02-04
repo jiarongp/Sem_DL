@@ -1,0 +1,12 @@
+name: Senti
+
+channels:
+        - defaults
+        - conda-forge
+
+dependencies:
+	- python
+	- pip
+	- numpy
+	- tensorflow-gpu
+
