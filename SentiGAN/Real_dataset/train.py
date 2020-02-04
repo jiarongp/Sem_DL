@@ -1,7 +1,7 @@
 import numpy as np
-# import tensorflow as tf
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
+import tensorflow as tf
+# import tensorflow.compat.v1 as tf
+# tf.disable_v2_behavior()
 import random
 from dataloader import Gen_Data_loader, Dis_Data_loader
 import pickle
@@ -15,7 +15,7 @@ from discriminator import Discriminator
 ######################################################################################
 EMB_DIM = 200 # embedding dimension
 HIDDEN_DIM = 200 # hidden state dimension of lstm cell
-MAX_SEQ_LENGTH = 17  # max sequence length
+MAX_SEQ_LENGTH = 20  # max sequence length
 BATCH_SIZE = 64
 
 
