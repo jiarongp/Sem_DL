@@ -12,7 +12,7 @@ dependencies:
   - blas=1.0=mkl
   - bleach=3.1.0=py37_0
   - c-ares=1.15.0=h7b6447c_1001
-  - ca-certificates=2019.11.27=0
+  - ca-certificates=2020.1.1=0
   - certifi=2019.11.28=py37_0
   - cudatoolkit=10.0.130=0
   - cudnn=7.6.5=cuda10.0_0
@@ -83,11 +83,13 @@ dependencies:
   - nbconvert=5.6.1=py37_0
   - nbformat=5.0.4=py_0
   - ncurses=6.1=he6710b0_1
+  - nltk=3.4.5=py37_0
   - notebook=6.0.3=py37_0
   - numpy=1.18.1=py37h4f9e942_0
   - numpy-base=1.18.1=py37hde5b4d6_1
   - openssl=1.1.1d=h7b6447c_3
   - opt_einsum=3.1.0=py_0
+  - pandas=1.0.0=py37h0573a6f_0
   - pandoc=2.2.3.2=0
   - pandocfilters=1.4.2=py37_1
   - parso=0.6.0=py_0
@@ -115,7 +117,7 @@ dependencies:
   - sip=4.19.8=py37hf484d3e_0
   - six=1.14.0=py37_0
   - sqlite=3.30.1=h7b6447c_0
-  - tensorflow-base=2.0.0=gpu_py37h0ec5d1f_0
+  - tensorflow-base=1.15.0=gpu_py37h9dcbed7_0
   - termcolor=1.1.0=py37_1
   - terminado=0.8.3=py37_0
   - testpath=0.4.4=py_0
@@ -127,6 +129,7 @@ dependencies:
   - werkzeug=0.16.0=py_0
   - wheel=0.33.6=py37_0
   - wrapt=1.11.2=py37h7b6447c_0
+  - xlrd=1.2.0=py37_0
   - xz=5.2.4=h14c3975_4
   - yaml=0.1.7=had09818_2
   - zeromq=4.3.1=he6710b0_3
