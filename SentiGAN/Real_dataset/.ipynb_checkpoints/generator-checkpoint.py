@@ -115,7 +115,7 @@ class Generator(object):
             ###################### train without targets ######################
             helper_o = tf.contrib.seq2seq.SampleEmbeddingHelper(
                 self.g_embeddings,
-                tf.fill([self.batch_size], self.vocab_dict['<GO>']),
+                start_tokens=tf.fill([self.batch_size], self.vocab_dict['<GO>']),
                 end_token=self.vocab_dict['<EOS>']
             )
             
@@ -125,6 +125,7 @@ class Generator(object):
                 initial_state=self.initial_state,
                 output_layer=self.output_layer
             )
+            
             outputs_o, _final_state_o, sequence_lengths_o = tf.contrib.seq2seq.dynamic_decode(
                 decoder=decoder_o,
                 output_time_major=False,

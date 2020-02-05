@@ -113,12 +113,13 @@ class Generator(object):
 
 
             ###################### train without targets ######################
+            # SampleEmbeddingHelper, uses sampling (from a distribution) instead of
+            # argmax and passes the result through an embedding layer to get the next input.
             helper_o = tf.contrib.seq2seq.SampleEmbeddingHelper(
                 self.g_embeddings,
-                tf.fill([self.batch_size], self.vocab_dict['<GO>']),
+                start_tokens=tf.fill([self.batch_size], self.vocab_dict['<GO>']),
                 end_token=self.vocab_dict['<EOS>']
             )
-            
             decoder_o = tf.contrib.seq2seq.BasicDecoder(
                 cell=self.decoder_cell,
                 helper=helper_o,
@@ -147,21 +148,6 @@ class Generator(object):
                 initial_state=self.initial_state,
                 output_layer=self.output_layer
             )
-            
-            # beam_search_initial_state = tf.contrib.seq2seq.tile_batch(
-            #     self.initial_state,
-            #     multiplier=20)
-            # decoder_i = tf.contrib.seq2seq.BeamSearchDecoder(
-            #     cell=self.decoder_cell,
-            #     embedding=self.g_embeddings,
-            #     start_tokens=tf.fill([self.batch_size], self.vocab_dict['<GO>']),
-            #     end_token=self.vocab_dict['<EOS>'],
-            #     initial_state=beam_search_initial_state,
-            #     beam_width=20,
-            #     output_layer=self.output_layer,
-            #     length_penalty_weight=0.1,
-            # )
-
             outputs_i, _final_state_i, sequence_lengths_i = tf.contrib.seq2seq.dynamic_decode(
                 decoder=decoder_i,
                 output_time_major=False,
@@ -169,13 +155,8 @@ class Generator(object):
                 swap_memory=True,
             )
 
-            # only for beam search
-            # sample_id = tf.transpose(outputs_i.predicted_ids, perm=[0,2,1])
-
             sample_id = outputs_i.sample_id
-
             self.infer_tokens = tf.unstack(sample_id, axis=0)
-
 
             ###################### rollout ######################
             self.rollout_input_ids = tf.placeholder(dtype=tf.int32, shape=[None, None])
@@ -199,6 +180,7 @@ class Generator(object):
                 maximum_iterations=self.max_sequence_length,
                 swap_memory=True
             )
+            # MultiClass Classification
             initial_state_MC = final_state_ro
             helper_MC = tf.contrib.seq2seq.SampleEmbeddingHelper(
                 self.g_embeddings,
@@ -266,14 +248,17 @@ class Generator(object):
         return tf.contrib.rnn.DropoutWrapper(tf.contrib.rnn.BasicLSTMCell(num_units),
                                              input_keep_prob=self.keep_prob)
 
+    # pad data with <GO> and <EOS>
     def pad_input_data(self, x):
         max_l = self.max_sequence_length
         go_id = self.vocab_dict['<GO>']
         end_id = self.vocab_dict['<EOS>']
+        # x_len is batch size
         x_len = len(x)
         ans = np.zeros((x_len, max_l), dtype=int)
         ans_lengths = []
         for i in range(x_len):
+            # each sentence start with go_id
             ans[i][0] = go_id
             jj = min(len(x[i]), self.max_sequence_length - 2)
             for j in range(jj):
@@ -383,8 +368,6 @@ class Generator(object):
             for j in range(l, r):
                 rewards[i][j] = rewards[i][-1]
         return rewards
-
-
 
     def padding(self, inputs, max_sequence_length):
         batch_size = len(inputs)

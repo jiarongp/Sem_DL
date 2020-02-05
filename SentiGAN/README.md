@@ -154,3 +154,8 @@ update_step = optimizer.apply_gradients(
 In our own experiments, we use standard SGD (tf.train.GradientDescentOptimizer)
 with a decreasing learning rate schedule, which yields better performance. See
 the [benchmarks](#benchmarks).
+
+## Discriminator
+<p align="center">
+<img width="80%" src="./README/cnn.png" />
+</p>

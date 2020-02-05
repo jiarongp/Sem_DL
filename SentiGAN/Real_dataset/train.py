@@ -15,7 +15,7 @@ from discriminator import Discriminator
 ######################################################################################
 EMB_DIM = 200 # embedding dimension
 HIDDEN_DIM = 200 # hidden state dimension of lstm cell
-MAX_SEQ_LENGTH = 20  # max sequence length
+MAX_SEQ_LENGTH = 25  # max sequence length
 BATCH_SIZE = 64
 
 
@@ -24,6 +24,7 @@ BATCH_SIZE = 64
 #########################################################################################
 dis_embedding_dim = 64
 dis_filter_sizes = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15]
+# number of filters for each size
 dis_num_filters = [100, 200, 200, 200, 200, 100, 100, 100, 100, 100, 160]
 dis_dropout_keep_prob = 0.75
 dis_l2_reg_lambda = 0.2
