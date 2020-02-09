@@ -18,9 +18,10 @@ class Generator(object):
         self.reward_gamma = reward_gamma
         self.grad_clip = 5.0
         self.keep_prob = 1.0
-        
+
         self.g_embeddings = tf.Variable(self.init_matrix([self.num_emb, self.emb_dim]))
 
+        # input layer
         with tf.variable_scope('placeholder'):
             self.x = tf.placeholder(tf.int32, shape=[self.batch_size, self.max_sequence_length])
             self.sequence_lengths = tf.placeholder(tf.int32, shape=[self.batch_size])
@@ -31,7 +32,8 @@ class Generator(object):
             # batch_size major
             # Looks up ids in a list of embedding tensors.
             self.emb_x = tf.nn.embedding_lookup(self.g_embeddings, self.x)
-            
+
+        # Output Layer
         # projection_layer which is a dense matrix to turn 
         # the top hidden states to logit vectors of dimension V.
         with tf.variable_scope('projection'):
@@ -48,15 +50,10 @@ class Generator(object):
             # inital_states, cell state and hidden state
             self.c = tf.random_normal([self.batch_size, self.num_units], mean=0, stddev=4)
             self.h = tf.random_normal([self.batch_size, self.num_units], mean=0, stddev=4)
-
-            # self.c = tf.placeholder(tf.float32, shape=[self.batch_size, self.num_units])
-            # self.h = tf.placeholder(tf.float32, shape=[self.batch_size, self.num_units])
-
-            # tf.zeros([self.batch_size, self.num_units])
-            # h = tf.zeros([self.batch_size, self.num_units])
             self.initial_state = tf.contrib.rnn.LSTMStateTuple(c=self.c, h=self.h)
 
-            ###################### pretain with targets ######################
+            ###################### pretrain with targets ######################
+            # embedding vectors as input, giving the input sequence length
             helper_pt = tf.contrib.seq2seq.TrainingHelper(
                 inputs=self.emb_x,
                 sequence_length=self.sequence_lengths,
@@ -180,7 +177,7 @@ class Generator(object):
                 maximum_iterations=self.max_sequence_length,
                 swap_memory=True
             )
-            # MultiClass Classification
+            # Monte Carlo
             initial_state_MC = final_state_ro
             helper_MC = tf.contrib.seq2seq.SampleEmbeddingHelper(
                 self.g_embeddings,
@@ -270,10 +267,13 @@ class Generator(object):
     def pad_target_data(self, x):
         max_l = self.max_sequence_length
         end_id = self.vocab_dict['<EOS>']
+        # x_len is batch size
         x_len = len(x)
         ans = np.zeros((x_len, max_l), dtype=int)
         for i in range(x_len):
+            # jj is the length of the sentence
             jj = min(len(x[i]), max_l-1)
+            # j is the index of a word
             for j in range(jj):
                 ans[i][j] = x[i][j]
             ans[i][jj] = end_id
@@ -380,3 +380,6 @@ class Generator(object):
     def save_model(self, sess):
         self.saver.save(sess, 'save/ckpt/model.ckpt')
         print("save model success!")
+
+    def load_model(self, sess, load_path):
+        self.saver.restore(sess, load_path)
