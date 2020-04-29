@@ -1,14 +1,31 @@
 ```
 .
-├── data (storing data from tweets)
-├── dataloader.py
-├── discriminator.py
-├── generator.py
-├── README (storing README.md material)
+├── Adversarial Text Generation for Social Bots (the LaTex report is here)
+├── curve_draw.ipynb (To draw the training loss and discriminator loss)
+├── data
+│   └── tweets
+│       ├── DataProcess.ipynb (generate .vocab and word embedding files)
+│       ├── dataproc.py (fetch data of other topics)
+│       ├── tweets.csv (dataset)
+│       ├── tweets.id (dataset in word embedding form)
+│       ├── tweets.txt (dataset in plain text form)
+│       └── tweets.vocab (sorted vocabulary according frequency)
+├── dataloader.py (load data to train)
+├── discriminator.py (Discriminator training)
+├── environment.yml
+├── generator.py (Generator training)
+├── postGui.py (A Gui program for showing the result. Type the keyword in the 
+                 search box and it shows the tweet that contains this keyword.)
+├── README
 ├── README.md
-├── references (literatures)
-├── save (log, saved models and generated texts)
-└── train.py
+├── references
+├── result.ipynb (To see the result of the model, use this notebook, it will 
+                   load the model and generate tweets, a Gui program will come up.
+                   You can use it to search tweet in result.txt with desired keyword)
+├── result.txt (generated tweets after running run_generator.py)
+├── run_generator.py (generating tweets from the trained model)
+├── save (trained model)
+└── train.py (for training)
 ```
 
 
