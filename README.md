@@ -1,3 +1,5 @@
+This project is based on the implementation of [SentiGAN](https://github.com/Nrgeup/SentiGAN) and its corresponding paper "[SentiGAN: Generating Sentimental Texts via Mixture Adversarial Networks](https://www.ijcai.org/Proceedings/2018/0618.pdf)".
+
 ```
 .
 ├── Adversarial Text Generation for Social Bots (the LaTex report is here)
